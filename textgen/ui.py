@@ -32,7 +32,7 @@ class MainWidget(Frame):
     BTN_H = 2
     MARKOV_FILE = 'markov.dat'
     TRAIN_STATE = 'training.dat'
-    BLOCKSIZE = 65536
+    BUF_SIZE = 65536
     
     def __init__(self, master, file_dir=None):
         """Initialize the Widget.
@@ -190,10 +190,10 @@ class MainWidget(Frame):
         """
         try:
             with file_path.open('rb') as f:
-                buf = f.read(self.BLOCKSIZE)
+                buf = f.read(self.BUF_SIZE)
                 while len(buf) > 0:
                     self._hash.update(buf)
-                    buf = f.read(self.BLOCKSIZE)
+                    buf = f.read(self.BUF_SIZE)
         except FileNotFoundError as e:
             return None
 

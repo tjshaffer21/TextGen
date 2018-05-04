@@ -21,14 +21,10 @@ class MarkovStruct(object):
 
         Parameters
           token       -- str
-          transitions -- list : List of transitio tokens.
+          transitions -- list : List of transition tokens.
         """
         self._token = token
-
-        if not transitions:
-            self._transitions = []
-        else:
-            self._transitions = transitions
+        self._transitions = transitions if transitions else []
 
         # Flags
         self._start = False
@@ -178,12 +174,7 @@ class Markov(object):
         Return
           boolean
         """
-        if not prev:
-            return True
-        if not prev[-1:].isalpha():
-            return True
-        
-        return False
+        return (not prev) or (not prev[-1:].isalpha())
 
     @classmethod
     def is_end(cls, check: str) -> bool:
@@ -195,10 +186,7 @@ class Markov(object):
         Return
           boolean
         """
-        if not check[-1:].isalpha():
-            return True
-
-        return False
+        return not check[-1:].isalpha()
 
     def generate(self, lines=1):
         """Generate a specified number of random lines.
@@ -289,11 +277,6 @@ class Markov(object):
         mars_list = dict()
         for each in data.split():
             each_pres = each # Preserve a copy
-            
-            # Check if word is start/end of sentence
-            start = self.is_start(prev, each)
-            end = self.is_end(each)
-
             each = Markov.sanitize_word(each).lower()
 
             if not each in mars_list:
@@ -307,11 +290,9 @@ class Markov(object):
                     pass
 
             # If necessary, flip the flags.
-            if start:
-                mars_list[each].start = start
-
-            if end:
-                mars_list[each].end = end
+            mars_list[each].start = True if self.is_start(prev, each_pres) \
+                                    else False
+            mars_list[each].end = True if self.is_end(each_pres) else False
             prev = each_pres
 
         self._markov = mars_list
@@ -330,9 +311,7 @@ class Markov(object):
             fl = open(str(fin), "rb")
             self._markov = pickle.load(fl)
             fl.close()
-        except FileNotFoundError as e:
-            return e.strerror
-        except EOFError as e:
+        except (FileNotFoundError, EOFError) as e:
             return e.strerror
         return None
         
