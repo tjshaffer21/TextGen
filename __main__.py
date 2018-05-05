@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 from pathlib import Path
-from tkinter import *
+import tkinter as tk
 from textgen import ui
 
 DATA_PATH = 'textgen/data/'
+DEFAULT_WIDTH = 650
+DEFAULT_HEIGHT = 510
 
 if __name__ == '__main__':
-    _root = Tk()
-    _root.geometry("650x510")
-    _root.minsize(650,510)
+    _root = tk.Tk()
+
+    x = _root.winfo_screenwidth() / 2 - DEFAULT_WIDTH /2
+    y = _root.winfo_screenheight() / 2 - DEFAULT_HEIGHT / 2
+    _root.geometry("%dx%d+%d+%d" % (DEFAULT_WIDTH, DEFAULT_HEIGHT, x, y))
 
     main = ui.MainWidget(_root, Path(Path.cwd() / DATA_PATH))
     

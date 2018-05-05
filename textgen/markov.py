@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""Implement the Markov chain for the application."""
 
 import string, random
 import pickle
@@ -204,30 +207,25 @@ class Markov(object):
         sentence = ""
         end = False
 
-        # Find start key.
         pos = random.randint(0, dict_size)
         key = None
+        st = True
         while not end:
             try:
-                key = self._get_nth_key(self._markov, pos-1)
+                if st:
+                    pos = random.randint(0, dict_size)
+                    key = self._get_nth_key(self._markov, pos-1)
 
-                if self._markov[key].start:
-                    end = True
-                    sentence += key.capitalize()
+                    if self._markov[key].start:
+                        st = False
+                        sentence += key.capitalize()
                 else:
-                    pos = (pos + 1) % dict_size
-            except KeyError:
-                pass
+                    if self._markov[key].transitions:
+                        pos = random.randint(0,
+                                len(self._markov[key].transitions)-1)
+                        key = self._markov[key].transitions[pos-1]
 
-        # Iterate
-        end = False        
-        while not end:
-            try:
-                if self._markov[key].transitions:
-                    pos = random.randint(0, len(self._markov[key].transitions)-1)
-                    key = self._markov[key].transitions[pos-1]
-
-                    sentence += " " + key
+                        sentence += " " + key
                     if self._markov[key].end:
                         if random.randint(0,1) == 1:
                             end = True
