@@ -14,13 +14,13 @@ class TestMarkovStruct(unittest.TestCase):
 
     def test_properties(self):
         self.assertEqual(False, self.markov.start, 'Wrong start')
-        self.assertEqual(False, self.markov.end, 'Wrong end')
+        self.assertEqual([], self.markov.end, 'Wrong end')
 
         self.markov.start = True
         self.assertEqual(True, self.markov.start, 'Wrong start')
 
-        self.markov.end = True
-        self.assertEqual(True, self.markov.start, 'Wrong end')
+        self.markov.add_punctuation('.')
+        self.assertEqual(['.'], self.markov.end, 'Wrong end')
 
     def test_transtions(self):
         self.markov.add_transitions(None)
@@ -51,13 +51,13 @@ class TestMarkov(unittest.TestCase):
                          'Invalid start')
 
     def test_is_end(self):
-        end = "bird."
-        endp = "plane"
-        endq = "train?"
+        e1 = "Hello"
+        e2 = "tomorrow."
+        e3 = "terror,"
 
-        self.assertEqual(True, markov.Markov.is_end(end), 'Invalid end')
-        self.assertEqual(False, markov.Markov.is_end(endp), 'Invalid end')
-        self.assertEqual(True, markov.Markov.is_end(endq), 'Invalid end')
+        self.assertEqual(False, markov.Markov.is_end(e1), 'Invalid end')
+        self.assertEqual(True, markov.Markov.is_end(e2), 'Invalid end')
+        self.assertEqual(False, markov.Markov.is_end(e3), 'Invalid end')
 
     def test_train(self):
         mock = "It goes without saying. 'twas a long night!"
@@ -70,7 +70,7 @@ class TestMarkov(unittest.TestCase):
         m3 = markov.MarkovStruct("without", ["saying"])
 
         m4 = markov.MarkovStruct("saying", ["twas"])
-        m4.end = True
+        m4.add_punctuation('.')
 
         m5 = markov.MarkovStruct("twas", ["a"])
         m5.start = True
@@ -79,7 +79,7 @@ class TestMarkov(unittest.TestCase):
         m7 = markov.MarkovStruct("long", ["night"])
 
         m8 = markov.MarkovStruct("night")
-        m8.end = True
+        m8.add_punctuation('!')
 
         mock_res = { 'it' : m1, 'goes' : m2, 'without' : m3, 'saying' : m4,
                      'twas' : m5, 'a' : m6, 'long' : m7, 'night' : m8}

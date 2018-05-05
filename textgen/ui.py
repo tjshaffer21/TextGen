@@ -13,9 +13,11 @@ from . import markov
 
 SOFTWARE_DESC = r"An implementation of Markov Chain for the English language."
 SOFTWARE_AUTH = r"Thomas Shaffer"
-SOFTWARE_VER  = "0.1"
+SOFTWARE_VER  = "0.2"
 
-ABOUT_SIZE = (400, 150)
+MARKOV_FILE = 'markov.dat'   # File name of path to store data.
+TRAIN_STATE = 'training.dat' # File name of path to training hashes.
+BUF_SIZE = 65536             # Buffer size for reading files.
 
 class MainWidget(ttk.Frame):
     """Main Frame widget for application.
@@ -23,9 +25,7 @@ class MainWidget(ttk.Frame):
     Attributes
       BTN_W         -- int : Constant for default button width.
       BTN_H         -- int : Constant for default button height.
-      MARKOV_FILE   -- str : The file name sans path of the markov data
-      TRAIN_STATE   -- str : File sans path of training hashes.
-      BUF_SIZE      -- int : Buffer size for reading files.
+      ABOUT_SIZE    -- tuple : Size used for w,h of the About subwidget.
 
       _file_dir     -- Path : Directory where files are located.
       _hash         --        Hash algorithm.
@@ -39,9 +39,8 @@ class MainWidget(ttk.Frame):
     
     BTN_W = 5
     BTN_H = 2
-    MARKOV_FILE = 'markov.dat'
-    TRAIN_STATE = 'training.dat'
-    BUF_SIZE = 65536
+    
+    ABOUT_SIZE = (400, 150)
     
     def __init__(self, master, file_dir=None):
         """Initialize the Widget.
@@ -57,8 +56,8 @@ class MainWidget(ttk.Frame):
         # Set up markov environment
         self._file_dir = file_dir
 
-        self._markov_path = Path(file_dir / self.MARKOV_FILE)
-        self._train_path = Path(file_dir / self.TRAIN_STATE)
+        self._markov_path = Path(file_dir / MARKOV_FILE)
+        self._train_path = Path(file_dir / TRAIN_STATE)
         self._markov = markov.Markov()
 
         self._hash = hashlib.md5()
@@ -143,11 +142,18 @@ class MainWidget(ttk.Frame):
         Modified attributes
           _text
         """
-        if self._markov_path is not None:
-            try:
-                self._markov.deserialize(self._markov_path)
-            except FileNotFoundError as e:
-                self._write(tk.END, "WARN: No Markov data available.\n\n")
+        try:
+            self._markov.deserialize(self._markov_path)
+        except FileNotFoundError as e:
+            self._write(tk.END, "WARN: No Markov data available.\n\n")
+
+            # If directory doesn't exist then create it.
+            parent = self._markov_path.parent
+            if not parent.exists():
+                try:
+                    parent.mkdir()
+                except FileExistsError:
+                    pass
 
     def _about_callback(self):
         """Callback for th about command."""
@@ -155,9 +161,9 @@ class MainWidget(ttk.Frame):
         about.title("About")
         about.resizable(0,0)
 
-        dx = self.master.winfo_width() / 2 - ABOUT_SIZE[0] / 2
-        dy = self.master.winfo_height() / 2 - ABOUT_SIZE[1] / 2
-        about.geometry("%dx%d+%d+%d" % (ABOUT_SIZE[0], ABOUT_SIZE[1],
+        dx = self.master.winfo_width() / 2 - self.ABOUT_SIZE[0] / 2
+        dy = self.master.winfo_height() / 2 - self.ABOUT_SIZE[1] / 2
+        about.geometry("%dx%d+%d+%d" % (self.ABOUT_SIZE[0], self.ABOUT_SIZE[1],
                                         self.master.winfo_x() + dx,
                                         self.master.winfo_y() + dy))
 
@@ -191,7 +197,7 @@ class MainWidget(ttk.Frame):
         Modified Attributes
           _text
         """
-        if self._markov is None:
+        if self._markov.is_empty():
             self._write(tk.END, "Error: No Markov data available.\n\n")
         else:
             self._write(tk.END, self._markov.generate())
@@ -252,10 +258,10 @@ class MainWidget(ttk.Frame):
         """
         try:
             with file_path.open('rb') as f:
-                buf = f.read(self.BUF_SIZE)
+                buf = f.read(BUF_SIZE)
                 while len(buf) > 0:
                     self._hash.update(buf)
-                    buf = f.read(self.BUF_SIZE)
+                    buf = f.read(BUF_SIZE)
         except FileNotFoundError as e:
             return None
 

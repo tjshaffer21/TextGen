@@ -15,8 +15,7 @@ class MarkovStruct(object):
       _transitions -- list : List of transition tokens.
       _start       -- bool : Flag indicating token can be used at the start of a
                              sentence.
-      _end         -- bool : Flag indicating token can be used at the end of a
-                             sentence.
+      _end         -- list : List of punctuation candidates.
     """
 
     def __init__(self, token: str, transitions = None):
@@ -28,12 +27,9 @@ class MarkovStruct(object):
         """
         self._token = token
         self._transitions = transitions if transitions else []
+        self._end = []
 
-        # Flags
         self._start = False
-        self._end = False
-
-        random.seed()
 
     def __str__(self):
         prestring = self._token + ": { "
@@ -65,18 +61,22 @@ class MarkovStruct(object):
     @start.setter
     def start(self, s: bool):
         self._start = s
-        
+
     @property
     def end(self):
         return self._end
-
-    @end.setter
-    def end(self,  e: bool):
-        self._end = e
-
+        
     @property
     def transitions(self):
         return self._transitions
+
+    def add_punctuation(self, punct: str):
+        """Add a punctuation mark to the list.
+
+        Parameters
+          punct -- str
+        """
+        self._end.append(punct)
 
     def add_transitions(self, transitions):
         """Add a new set of transitions into the structure.
@@ -104,18 +104,17 @@ class Markov(object):
       _markov -- Markov data stored here.
     """
 
-    PUNCTUATION = ['.', '!', '?']
-
     def __init__(self, markov = None):
         """Initialize the class.
 
         Parameters
           markov -- Path to markov data.
         """
-
         self._markov = dict()
         if not markov:
             self.read_markov(markov)
+
+        random.seed()
 
     def __iter__(self):
         return iter(self._markov)
@@ -138,7 +137,31 @@ class Markov(object):
                 return key
 
         return None
+    
+    @staticmethod
+    def is_start(prev, check: str) -> bool:
+        """Check if word is the start of a sentence.
 
+        Parameters
+          prev  -- str : Token of previous world
+          check -- str : Word to be checke.
+        Return
+          bool
+        """
+        return (not prev) or (not prev[-1:].isalpha())
+
+    @staticmethod
+    def is_end(check: str) -> bool:
+        """Check if word is at the end of a sentence.
+
+        Parameters
+          check -- str: Token to examine.
+        Return
+          bool
+        """
+        punct = ['.', '!', '?']
+        return (not check[-1].isalpha()) and check[-1] in punct
+    
     @staticmethod
     def sanitize_word(word: str) -> str:
         """Clean up the word to make it usable for the Markov structure.
@@ -165,31 +188,16 @@ class Markov(object):
                 break
 
         return w
-    
-    @classmethod
-    def is_start(cls, prev, check: str) -> bool:
-        """Check if word is the start of a sentence.
 
-        Parameters
-          cls   -- Class object
-          prev  -- str : Token of previous world
-          check -- str : Word to be checke.
+    def is_empty(self) -> bool:
+        """Check if the dictionary is empty.
+
         Return
-          boolean
+          bool
         """
-        return (not prev) or (not prev[-1:].isalpha())
-
-    @classmethod
-    def is_end(cls, check: str) -> bool:
-        """Check if word is the end of the sentence.
-
-        Parameters
-          cls   -- Class object
-          check -- str : Word to be checked
-        Return
-          boolean
-        """
-        return not check[-1:].isalpha()
+        if len(self._markov) <= 0:
+            return True
+        return False
 
     def generate(self, lines=1):
         """Generate a specified number of random lines.
@@ -227,14 +235,13 @@ class Markov(object):
 
                         sentence += " " + key
                     if self._markov[key].end:
-                        if random.randint(0,1) == 1:
-                            end = True
+                        end = True
             except KeyError:
                 pass
             
         # Punctuate
-        pos = random.randint(0, len(self.PUNCTUATION)-1)
-        sentence += self.PUNCTUATION[pos]
+        pos = random.randint(0, len(self._markov[key].end))
+        sentence += self._markov[key].end[pos-1]
 
         return sentence + " " + self.generate(lines-1)
     
@@ -247,19 +254,20 @@ class Markov(object):
           -1 -- If there is a failure in reading the file.
            1 -- Successful read.
         """
-        success = -1
         if not fin:
-            return success
+            return -1
         
         path = Path(fin)
-        if not path.exists():
-            return success
+        try:
+            if not path.exists():
+                return -1
+        except OSError:
+            return -1
 
         with path.open(encoding='utf-8') as f:
             f.read_line()
 
-        success = 1
-        return success
+        return 1
         
     def train(self, data: str) -> dict:
         """Take data input and feed it into the markov structure.
@@ -287,10 +295,12 @@ class Markov(object):
                 except KeyError: # Ignore any unique or malformed words.
                     pass
 
-            # If necessary, flip the flags.
-            mars_list[each].start = True if self.is_start(prev, each_pres) \
+            if self.is_end(each_pres):
+                mars_list[each].add_punctuation(each_pres[-1:])
+                
+            mars_list[each].start = True if Markov.is_start(prev, each_pres) \
                                     else False
-            mars_list[each].end = True if self.is_end(each_pres) else False
+
             prev = each_pres
 
         self._markov = mars_list
@@ -301,26 +311,19 @@ class Markov(object):
 
         Parameters
           fin -- Path : Path to the file to write.
-        Return
-          None if success
-          str if error
         """
         try:
             fl = open(str(fin), "rb")
             self._markov = pickle.load(fl)
             fl.close()
         except (FileNotFoundError, EOFError) as e:
-            return e.strerror
-        return None
+            raise e
         
     def serialize(self, fout: Path):
         """Serialize data so it can be written to disk.
 
         Parameters
           fout -- Path : Path to read file from.
-        Return
-          None if success
-          str if error
         """
         try:
             if not fout.exists():
@@ -330,5 +333,4 @@ class Markov(object):
             pickle.dump(self._markov, fl)
             fl.close()
         except FileNotFoundError as e:
-            return e.strerror
-        return None
+            raise e
