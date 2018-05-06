@@ -104,6 +104,8 @@ class Markov(object):
       _markov -- Markov data stored here.
     """
 
+    END_CHARS = ['!', '?', '.']
+
     def __init__(self, markov = None):
         """Initialize the class.
 
@@ -159,36 +161,60 @@ class Markov(object):
         Return
           bool
         """
-        punct = ['.', '!', '?']
-        return (not check[-1].isalpha()) and check[-1] in punct
-    
+        return (not check[-1].isalpha()) and check[-1] in Markov.END_CHARS
+
     @staticmethod
-    def sanitize_word(word: str) -> str:
-        """Clean up the word to make it usable for the Markov structure.
+    def strip_front(word: str) -> str:
+        """Clean up the front of the word.
 
         Parameters
-          word -- str : Unicode string to sanitize.
+          word -- str
         Return
           str
         """
         w = word
-        
-        # Clean up the front.
         for i in w:
             if not i.isalpha():
                 w = w[1:]
             else:
                 break
 
-        # Clean up the back.
+        return w
+
+    @staticmethod
+    def strip_back(word: str, exc_list=[], until=0) -> str:
+        """Clean up the back of the word.
+
+        Exemptions can be made by including the characters in the exc_list, and
+        indicating the value in the until indicator.
+
+        Examples
+          apple!!!!    ['!']  2  -> apple!!
+          apple-!.     ['!']  2  -> apple!
+          apple-!.     ['!']     -> apple
+
+
+        Parameters
+          word     -- str  : The word to sanitize
+          exc_list -- list : List of exclusions.
+          until    -- int  : Characters allowed to be saved.
+        Return
+          str
+        """
+        w = word
+        temp = ""
+        found = 0
         for i in reversed(w):
             if not i.isalpha():
+                if i in exc_list and found < until:
+                    temp += i
+                    found += 1
                 w = w[:-1]
             else:
                 break
 
-        return w
-
+        return w + temp
+        
     def is_empty(self) -> bool:
         """Check if the dictionary is empty.
 
@@ -279,18 +305,21 @@ class Markov(object):
         Modifed Attributes
           _markov
         """
+        punc = set(string.punctuation) - set(self.END_CHARS)
         prev = None
         mars_list = dict()
         for each in data.split():
             each_pres = each # Preserve a copy
-            each = Markov.sanitize_word(each).lower()
+            each = Markov.strip_front(Markov.strip_back(each, punc, 1)).lower()
 
-            if not each in mars_list:
+            if each not in mars_list:
                 mars_list[each] = MarkovStruct(each)
 
             if prev:
                 try:
-                    mars = Markov.sanitize_word(prev).lower()
+                    mars = Markov.strip_front(Markov.strip_back(prev,
+                                                                punc,
+                                                                1)).lower()
                     mars_list[mars].add_transitions(mars_list[each].token)
                 except KeyError: # Ignore any unique or malformed words.
                     pass

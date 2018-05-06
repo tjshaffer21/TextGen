@@ -89,21 +89,37 @@ class TestMarkov(unittest.TestCase):
         self.maxDiff = None
         self.assertDictEqual(mock_res, mark._markov, 'Invalid training')
 
-    def test_sanitize(self):
+    def test_strip_front(self):
         w1 = "apple"
-        self.assertEqual("apple", markov.Markov.sanitize_word(w1), 'Failure')
+        self.assertEqual("apple", markov.Markov.strip_front(w1), 'Failure')
         w2 = "!apple"
-        self.assertEqual("apple", markov.Markov.sanitize_word(w2), 'Failure')
-        w3 = "apple!"
-        self.assertEqual("apple", markov.Markov.sanitize_word(w3), 'Failure')
+        self.assertEqual("apple", markov.Markov.strip_front(w2), 'Failure')
         w4 = "'you"
-        self.assertEqual("you", markov.Markov.sanitize_word(w4), 'Failure')
+        self.assertEqual("you", markov.Markov.strip_front(w4), 'Failure')
         w5 = "'Sparrow"
-        self.assertEqual("Sparrow", markov.Markov.sanitize_word(w5), 'Failure')
-        w6= "'And'"
-        self.assertEqual("And", markov.Markov.sanitize_word(w6), 'Failure')
+        self.assertEqual("Sparrow", markov.Markov.strip_front(w5), 'Failure')
         w7 = "--hassle"
-        self.assertEqual("hassle", markov.Markov.sanitize_word(w7), 'Failure')
+        self.assertEqual("hassle", markov.Markov.strip_front(w7), 'Failure')
+
+    def test_strip_back(self):
+        w1 = "apple"
+        self.assertEqual("apple", markov.Markov.strip_back(w1), 'Failure')
+        w3 = "apple!"
+        self.assertEqual("apple", markov.Markov.strip_back(w3), 'Failure')
+        w4 = "apple!!!!"
+        self.assertEqual("apple", markov.Markov.strip_back(w4), 'Failure')
+        w5 = "apple-!."
+        self.assertEqual("apple", markov.Markov.strip_back(w5), 'Failure')
+        
+        self.assertEqual("apple", markov.Markov.strip_back(w5, ['!']),
+                         'Failure')
+        self.assertEqual("apple!", markov.Markov.strip_back(w5, ['!'], 1),
+                         'Failure')
+        self.assertEqual("apple!", markov.Markov.strip_back(w5, ['!'], 2),
+                         'Failure')
+        self.assertEqual("apple!!", markov.Markov.strip_back(w4, ['!'], 2),
+                         'Failure')
+                                                                
         
 if __name__ == '__main__':
     unittest.main()
