@@ -3,7 +3,7 @@
 
 """Implement the Markov chain for the application."""
 
-import string, random
+import string, random, re, unicodedata
 import pickle
 from pathlib import Path
 
@@ -65,7 +65,7 @@ class MarkovStruct(object):
     @property
     def end(self):
         return self._end
-        
+
     @property
     def transitions(self):
         return self._transitions
@@ -96,7 +96,7 @@ class MarkovStruct(object):
             else:
                 self._transitions.append(transitions)
 
-    
+
 class Markov(object):
     """Class that handles the Markov Chain.
 
@@ -139,7 +139,7 @@ class Markov(object):
                 return key
 
         return None
-    
+
     @staticmethod
     def is_start(prev, check: str) -> bool:
         """Check if word is the start of a sentence.
@@ -161,7 +161,14 @@ class Markov(object):
         Return
           bool
         """
-        return (not check[-1].isalpha()) and check[-1] in Markov.END_CHARS
+        build = ''.join(str(e) + "|" for e in Markov.END_CHARS)
+        comp = re.compile(r'[%s]$' % build)
+
+        if re.search(comp, check):
+            if re.search(r'[.]{3}$', check): # Check elipsis
+                return False
+            return True
+        return False
 
     @staticmethod
     def strip_front(word: str) -> str:
@@ -172,14 +179,7 @@ class Markov(object):
         Return
           str
         """
-        w = word
-        for i in w:
-            if not i.isalpha():
-                w = w[1:]
-            else:
-                break
-
-        return w
+        return re.sub(r'(\W+|[_]{1,})(?=\w+?\W{0,})', '', word)
 
     @staticmethod
     def strip_back(word: str, exc_list=[], until=0) -> str:
@@ -190,7 +190,8 @@ class Markov(object):
 
         Examples
           apple!!!!    ['!']  2  -> apple!!
-          apple-!.     ['!']  2  -> apple!
+          apple-!.     ['!']  1  -> apple!
+          apple!-.!    ['!']  2  -> apple!!
           apple-!.     ['!']     -> apple
 
 
@@ -202,19 +203,28 @@ class Markov(object):
           str
         """
         w = word
-        temp = ""
-        found = 0
-        for i in reversed(w):
-            if not i.isalpha():
-                if i in exc_list and found < until:
-                    temp += i
-                    found += 1
-                w = w[:-1]
-            else:
-                break
+        if not exc_list or until == 0:
+            w = re.sub(r'(\W|_{1,})', '', w)
+        else:
+            build = ''.join(str(e) + "|" for e in exc_list)
+            comp = re.compile(r'(?!\w)(?![%s]+?)(\W|_{1,})' % build)
+            w = re.sub(comp, '', w)
 
-        return w + temp
-        
+            if not w[-1:].isalpha(): # Last character is alpha so skip.
+                for i in exc_list:
+                    count = w.count(i) - until
+                    for j in reversed(w):
+                        if count == 0:
+                            break
+                        if j.isalpha():
+                            break
+
+                        if j == i:
+                            w = w[:-1]
+                            count -= 1
+            pass
+        return w
+
     def is_empty(self) -> bool:
         """Check if the dictionary is empty.
 
@@ -225,7 +235,7 @@ class Markov(object):
             return True
         return False
 
-    def generate(self, lines=1):
+    def generate(self, lines=1) -> str:
         """Generate a specified number of random lines.
 
         Parameters
@@ -235,7 +245,7 @@ class Markov(object):
         """
         if lines == 0:
             return "\n"
-        
+
         dict_size = len(self._markov)
 
         sentence = ""
@@ -264,13 +274,13 @@ class Markov(object):
                         end = True
             except KeyError:
                 pass
-            
+
         # Punctuate
         pos = random.randint(0, len(self._markov[key].end))
         sentence += self._markov[key].end[pos-1]
 
-        return sentence + " " + self.generate(lines-1)
-    
+        return sentence + "\n" + self.generate(lines-1)
+
     def read_markov(self, fin) -> int:
         """Read the markov data into the system.
 
@@ -282,7 +292,7 @@ class Markov(object):
         """
         if not fin:
             return -1
-        
+
         path = Path(fin)
         try:
             if not path.exists():
@@ -294,7 +304,7 @@ class Markov(object):
             f.read_line()
 
         return 1
-        
+
     def train(self, data: str) -> dict:
         """Take data input and feed it into the markov structure.
 
@@ -305,20 +315,24 @@ class Markov(object):
         Modifed Attributes
           _markov
         """
-        punc = set(string.punctuation) - set(self.END_CHARS)
+        # Used to handle punctuation that is getting caught in the current regex
+        # in strip_back()
+        exc = ['-']
         prev = None
         mars_list = dict()
-        for each in data.split():
-            each_pres = each # Preserve a copy
-            each = Markov.strip_front(Markov.strip_back(each, punc, 1)).lower()
+
+        data = re.split(r'-{2,}|\s', data)
+        idx = 0
+        while idx < len(data):
+            each = each_pres = data[idx]
+            each = Markov.strip_front(Markov.strip_back(each, exc, 1)).lower()
 
             if each not in mars_list:
                 mars_list[each] = MarkovStruct(each)
 
             if prev:
                 try:
-                    mars = Markov.strip_front(Markov.strip_back(prev,
-                                                                punc,
+                    mars = Markov.strip_front(Markov.strip_back(prev, exc,
                                                                 1)).lower()
                     mars_list[mars].add_transitions(mars_list[each].token)
                 except KeyError: # Ignore any unique or malformed words.
@@ -326,11 +340,12 @@ class Markov(object):
 
             if self.is_end(each_pres):
                 mars_list[each].add_punctuation(each_pres[-1:])
-                
+
             mars_list[each].start = True if Markov.is_start(prev, each_pres) \
                                     else False
 
             prev = each_pres
+            idx += 1
 
         self._markov = mars_list
         return self._markov
@@ -347,7 +362,7 @@ class Markov(object):
             fl.close()
         except (FileNotFoundError, EOFError) as e:
             raise e
-        
+
     def serialize(self, fout: Path):
         """Serialize data so it can be written to disk.
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sys
-import hashlib
+import sys, hashlib
 from pathlib import Path
 import tkinter as tk
 
@@ -24,7 +23,7 @@ if __name__ == '__main__':
     gui = False # GUI Flag
     tin = None  # Training input
     gcnt = 1    # Lines generated.
-    
+
     if len(sys.argv) == 1:
         gui = True
     else:
@@ -42,7 +41,7 @@ if __name__ == '__main__':
                 sys.exit(-1)
         except ValueError:
             pass
-        
+
         try:
             idx = sys.argv.index("-n") + 1
             gcnt = sys.argv[idx]
@@ -76,7 +75,7 @@ if __name__ == '__main__':
         _root.geometry("%dx%d+%d+%d" % (DEFAULT_WIDTH, DEFAULT_HEIGHT, x, y))
 
         main = ui.MainWidget(_root, mpath, tpath, markov)
-    
+
         main.mainloop()
     else:
         if tin == None:
@@ -104,8 +103,7 @@ if __name__ == '__main__':
                     print("Training complete.\n")
                 else:
                     print("Training already completed.\n")
-                    
+
                 print(markov.generate(int(gcnt)))
             except FileNotFoundError as e:
                 print(e)
-                        

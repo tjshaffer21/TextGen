@@ -14,13 +14,21 @@ A naive Markov text generator.
 
 ### Testing
 
-``` python -m unittest discover -s textgen
+``` python -m unittest discover -s textgen ```
 
 ### Running
 
-``` python textgen
+``` python textgen ```
 
-After launching, if there is no data available then training can be completed by browsing for the file and then pressing the training button. Otherwise, if training does exist then pressing the generate button will suffice.
+Withou any commandline arguments, the application launches the GUI.
+
+``` python textgen -t [path-to-file] -n [num] ```
+
+You can specify a training file and a number lines to generate. The results are printed to stdout.
+
+``` python textgen -n [num] ```
+
+Only specifying the number will generate lines based on the existing system.
 
 ## Authors
 

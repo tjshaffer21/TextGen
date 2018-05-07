@@ -25,15 +25,15 @@ class MainWidget(ttk.Frame):
       _train_file   -- StringVar : File path of training files to read.
       _train_path   -- Path : The training data file that stores hashes.
     """
-    
+
     BTN_W = 5
     BTN_H = 2
-    
+
     ABOUT_SIZE = (400, 150)
-    
+
     def __init__(self, master, markov_file, training_file, markov):
         """Initialize the Widget.
-        
+
         Parameters
           master        -- Parent of the Widget.
           markov_file   -- Path to the markov data
@@ -49,20 +49,20 @@ class MainWidget(ttk.Frame):
         self._train_path = training_file
         self._markov = markov
 
-        # Set up GUI                
+        # Set up GUI
         self._master = master
         self._master.title("Text Generator")
         self._master.resizable(0,0)
         self._master.protocol('WM_DELETE_WINDOW', self._exit_callback)
 
         ttk.Frame.__init__(self, master)
-        
+
         self._text = None
         self._menu = tk.Menu(self._master)
-        
+
         self._train_file = tk.StringVar()
         self._train_file.set("Training File")
-        
+
         self._init_menu()
         self._init_layout()
 
@@ -89,12 +89,12 @@ class MainWidget(ttk.Frame):
         self._text = tk.scrolledtext.ScrolledText(self._master, wrap='word',
                                                    state="disabled")
         self._text.grid(row=0, column=0, columnspan=width)
-                
+
         # Create buttons
         tk.Button(self._master, text="Browse", width=self.BTN_W,
                   height=self.BTN_H, padx=10,
                   command=self._file_callback).grid(row=1, column=width-2)
-        tk.Button(self._master, text="Train", width=self.BTN_W, 
+        tk.Button(self._master, text="Train", width=self.BTN_W,
                   height=self.BTN_H, padx=10,
                   command=self._train_callback).grid(row=1, column=width-1)
         tk.Button(self._master, text="Generate", width=self.BTN_W,
@@ -149,7 +149,7 @@ class MainWidget(ttk.Frame):
     def _exit_callback(self):
         """Callback for exit procedures."""
         self._master.destroy()
-        
+
     def _file_callback(self):
         """Callback for the 'Browse' button.
 
@@ -160,10 +160,10 @@ class MainWidget(ttk.Frame):
             initialdir = str(Path.cwd()),
             title = "Select file",
             filetypes = (("txt files", "*.txt"), ("all files", "*."))))
-        
+
     def _gen_callback(self):
         """Callback for the generate button.
-        
+
         Modified Attributes
           _text
         """
@@ -174,7 +174,7 @@ class MainWidget(ttk.Frame):
 
     def _train_callback(self):
         """Callback for the 'Train' button.
-        
+
         Modified Attributes
           _hash
           _markov
@@ -188,7 +188,7 @@ class MainWidget(ttk.Frame):
             tfout = Path(self._train_path)
             if not tfout.exists():
                 tfout.touch(mode=0o666, exist_ok=True)
-            
+
             # Check if hash of file exists.
             hash_obj = hashlib.md5()
             hs = common.hash_file(hash_obj, train)
@@ -211,7 +211,7 @@ class MainWidget(ttk.Frame):
         """Hide the window and return control to parent."""
         win.grab_release()
         win.withdraw()
-        
+
     def _write(self, position=tk.END, text=None):
         """Convience function to write to _text.
 
