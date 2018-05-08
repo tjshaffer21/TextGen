@@ -12,6 +12,5 @@
 
 - [X] ISSUE 1: Em dash connects two seperate tokens together.
 - [X] ISSUE 2: Elipsis and/or repeated end punctuations create bad transitions.
-- [ ] ISSUE 3: Not all of the punctuation set is necessary for tokens.
 - [ ] ISSUE 4: strip_back will error if exception list includes characters that need to be escaped.
 - [ ] ISSUE 5: Regex needs to be cleaned up.

@@ -30,6 +30,8 @@ class MarkovStruct(object):
         self._end = []
 
         self._start = False
+        self._tcount = len(self._transitions)
+        self._ecount = 0
 
     def __str__(self):
         prestring = self._token + ": { "
@@ -67,8 +69,16 @@ class MarkovStruct(object):
         return self._end
 
     @property
+    def ecount(self):
+        return self._ecount
+
+    @property
     def transitions(self):
         return self._transitions
+
+    @property
+    def tcount(self):
+        return self._tcount
 
     def add_punctuation(self, punct: str):
         """Add a punctuation mark to the list.
@@ -77,6 +87,7 @@ class MarkovStruct(object):
           punct -- str
         """
         self._end.append(punct)
+        self._ecount += 1
 
     def add_transitions(self, transitions):
         """Add a new set of transitions into the structure.
@@ -88,14 +99,16 @@ class MarkovStruct(object):
         if isinstance(transitions, list):
             if not self._transitions:
                 self._transitions = transitions
+                self._tcount = len(self._transitions)
             else:
                 self._transitions += transitions
+            self._tcount += len(transitions)
         elif isinstance(transitions, str):
             if not self._transitions:
                 self._transitions = [transitions]
             else:
                 self._transitions.append(transitions)
-
+            self._tcount += 1
 
 class Markov(object):
     """Class that handles the Markov Chain.
@@ -271,7 +284,13 @@ class Markov(object):
 
                         sentence += " " + key
                     if self._markov[key].end:
-                        end = True
+                        # Cut down on frequent erly ends.
+                        prob = self._markov[key].ecount / \
+                               (self._markov[key].ecount + \
+                                self._markov[key].tcount)
+                        prob = (prob * 100) * random.randint(0,100) + 10
+                        if prob > 50:
+                            end = True
             except KeyError:
                 pass
 
@@ -317,7 +336,7 @@ class Markov(object):
         """
         # Used to handle punctuation that is getting caught in the current regex
         # in strip_back()
-        exc = ['-']
+        exc = ['-', ',', '\'']
         prev = None
         mars_list = dict()
 
