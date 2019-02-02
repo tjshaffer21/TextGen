@@ -7,28 +7,32 @@ A naive Markov text generator.
 ### Prerequisites
 
 - Python 3
-  - hashlib
-  - pickle
-  - pathlib
-  - tkinter
-
-### Testing
-
-``` python -m unittest discover -s textgen ```
+- hashlib
+- pathlib
+- tkinter
+- networkx
+- nltk
+- numpy
+- yaml
 
 ### Running
 
-``` python textgen ```
+By default, ```python textgen``` is the same as ```python textgen -g```.
 
-Withou any commandline arguments, the application launches the GUI.
+#### Command-line actions
 
-``` python textgen -t [path-to-file] -n [num] ```
+Training can be performed by ```python textgen -t [path-to-file]```.
 
-You can specify a training file and a number lines to generate. The results are printed to stdout.
+Output can be printed by ```python textgen -n [num]```.
 
-``` python textgen -n [num] ```
+## Limitations
 
-Only specifying the number will generate lines based on the existing system.
+* The application works under the assumption of good, clean data.
+  * Currently, there needs to be more work to properly handle various use cases. In particular, there is not guarantee that rules for punctuation are properly followed.
+  * Currently, there is no means of handling special data like dates.
+* Performance issues with large amounts of data.
+* The GUI has limited features.
+* No way to delete or edit data.
 
 ## Authors
 

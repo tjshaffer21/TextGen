@@ -3,7 +3,7 @@
 
 """Implement the user interface for the application."""
 
-import hashlib
+import sys, hashlib
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
@@ -14,16 +14,23 @@ class MainWidget(ttk.Frame):
     """Main Frame widget for application.
 
     Attributes
-      BTN_W         -- int : Constant for default button width.
-      BTN_H         -- int : Constant for default button height.
-      ABOUT_SIZE    -- tuple : Size used for w,h of the About subwidget.
+      BTN_W (int) : Constant for default button width.
+      BTN_H (int) : Constant for default button height.
+      ABOUT_SIZE (tuple) : Size used for w,h of the About subwidget.
 
-      _markov_path  -- Path : The markov data file.
-      _markov       -- Markov
-      _master       -- Frame : The parent widget.
-      _text         -- Text  : Main text widget to display results.
-      _train_file   -- StringVar : File path of training files to read.
-      _train_path   -- Path : The training data file that stores hashes.
+    Private Attributes
+      _markov_path (Path) : The markov data file.
+      _markov (Markov)
+      _master (Frame) : The parent widget.
+      _text (Text)  : Main text widget to display results.
+      _train_file (StringVar) : File path of training files to read.
+      _train_path (Path) : The training data file that stores hashes.
+
+    Parameters
+        master        -- Parent of the Widget.
+        markov_file   -- Path to the markov data
+        training_file -- Path to the training record.
+        markov        -- The markov system
     """
 
     BTN_W = 5
@@ -31,23 +38,13 @@ class MainWidget(ttk.Frame):
 
     ABOUT_SIZE = (400, 150)
 
-    def __init__(self, master, markov_file, training_file, markov):
-        """Initialize the Widget.
-
-        Parameters
-          master        -- Parent of the Widget.
-          markov_file   -- Path to the markov data
-          training_file -- Path to the training record.
-          markov        -- The markov system
-        """
+    def __init__(self, master, markov: markov.Markov, markov_file: Path,
+                 training_file: Path):
         if master == None:
             ttk.messagebox.showerror("Error", "Unable to render screen.")
             sys.exit(-1)
 
-        # Set up markov environment
-        self._markov_path = markov_file
-        self._train_path = training_file
-        self._markov = markov
+        self._markov_env = (markov, markov_file, training_file)
 
         # Set up GUI
         self._master = master
@@ -66,13 +63,13 @@ class MainWidget(ttk.Frame):
         self._init_menu()
         self._init_layout()
 
-        if self._markov.is_empty():
+        if self._markov_env[0].is_empty():
             self._write(tk.END, "WARN: No Markov data available.\n\n")
 
     def _init_layout(self):
         """Initialze the layout.
 
-        Modified Attributes
+        Side Effects
           self._text
           self._train_file
         """
@@ -109,7 +106,7 @@ class MainWidget(ttk.Frame):
     def _init_menu(self):
         """Initialize the menu bar.
 
-        Modified attributes
+        Side Effects
           master
           _menu
         """
@@ -153,7 +150,7 @@ class MainWidget(ttk.Frame):
     def _file_callback(self):
         """Callback for the 'Browse' button.
 
-        Modified Attributes
+        Side Effects
           _train_file
         """
         self._train_file.set(tk.filedialog.askopenfilename(
@@ -164,28 +161,26 @@ class MainWidget(ttk.Frame):
     def _gen_callback(self):
         """Callback for the generate button.
 
-        Modified Attributes
+        Side Effects
           _text
         """
-        if self._markov.is_empty():
+        if self._markov_env[0].is_empty():
             self._write(tk.END, "Error: No Markov data available.\n\n")
         else:
-            self._write(tk.END, self._markov.generate())
+            self._write(tk.END, self._markov_env[0].generate() + ' ')
 
     def _train_callback(self):
         """Callback for the 'Train' button.
 
-        Modified Attributes
-          _hash
-          _markov
-          _text
+        Side Effects
+          _hash, _markov_env, _text are modified.
         """
         try:
             self._write(tk.END, "Attempting to train...\n")
             train = Path(self._train_file.get())
 
             # Ensure training file exists.
-            tfout = Path(self._train_path)
+            tfout = Path(self._markov_env[1])
             if not tfout.exists():
                 tfout.touch(mode=0o666, exist_ok=True)
 
@@ -195,12 +190,12 @@ class MainWidget(ttk.Frame):
 
             found = common.hash_exists(tfout, hs)
             if not found:
-                self._markov.train(train.read_text(encoding='utf-8'))
+                self._markov_env[0].train(train.read_text(encoding='utf-8'))
 
                 with tfout.open('a') as f:
                     f.write(hs + "\n")
 
-                self._markov.serialize(self._markov_path)
+                self._markov_env[0].write(self._markov_env[1])
                 self._write(tk.END, "Training complete.\n\n")
             else:
                 self._write(tk.END, "Training already completed.\n\n")
@@ -218,7 +213,7 @@ class MainWidget(ttk.Frame):
         Parameters
           position --
           text     -- String
-        Modified Attributes
+        Side Effects
           _text
         """
         self._text.config(state=tk.NORMAL)

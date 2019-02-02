@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
-
 """Common functions across interfaces."""
 
+from pathlib import Path
 import hashlib
+
 from textgen import config
 
-def hash_exists(fin, hashdig):
+def hash_exists(fin: Path, hashdig) -> bool:
     """Check if the hash exists i the file.
 
     Parameters
-      fin     -- File to read.
-      hashdig -- Digest of the hash.
+      fin (Path) : File to read.
+      hashdig () : Digest of the hash.
     Return
       bool
     """
@@ -21,15 +21,15 @@ def hash_exists(fin, hashdig):
 
     return False
 
-def hash_file(hash_obj, fout):
+def hash_file(hash_obj, fout: Path):
     """Create a hash of the file.
 
     Parameters
-      hash_obj -- The hash object
-      fout -- Path object to the file.
+      hash_obj () The hash object
+      fout (Path) : Path to file to be written.
     Return
-      None -- File not found
-      str
+        str : If fout was found.
+        None : If fout was not found.
     """
     try:
         with fout.open('rb') as f:
@@ -37,6 +37,6 @@ def hash_file(hash_obj, fout):
             while len(buf) > 0:
                 hash_obj.update(buf)
                 buf = f.read(config.BUF_SIZE)
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         return None
     return hash_obj.hexdigest()
