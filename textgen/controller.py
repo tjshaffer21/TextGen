@@ -1,6 +1,10 @@
-import hashlib
+import sys, hashlib, queue, threading
+from time import sleep
+from string import punctuation
 from pathlib import Path
 import tkinter as tk
+from functools import reduce
+from numpy.random import choice
 from textgen import common, cmd, markov, ui
 
 DEFAULT_WIDTH = 650
@@ -10,65 +14,42 @@ class Controller(object):
     """Controller to handle communication between model and view.
 
     Attributes
-        _markov_path (private, Path) : Path to the Markov data.
-        _training_path (private, Path) : Path to the training data.
+        _env (private, dict) : 'markov_path', 'training_path', 'model' data
+        _threads (private, dict) : 'generate', 'train', and 'load' threads.
         _training_input (private) : Path to training input; None if there is none.
         _lines (int, default=1) : Number of lines to print. Applicable to command
                                   line only.
-        _is_gui (bool, default=True) : Flag for view type.
+        _gui : GUI variable.
     Parameters
-        See Attributes
+        markov_path (Path) : Path to the markov data.
+        training_path (Path) : Path to the hash data.
+        training_input (Path) : Path to data to train on, if available.
+        lines (int) : Number of lines to generate (cmd, only)
+        is_gui (bool) : Flag indicating whether GUI or terminal.
     """
-
     def __init__(self, markov_path: Path, training_path: Path,
                  training_input: Path, lines: int = 1, is_gui: bool = True):
-        self._markov_path = markov_path
-        self._training_path = training_path
+        self._env = { 'markov_path': markov_path,
+                      'training_path' : training_path,
+                      'model' : None
+        }
         self._training_input = Path(training_input) if training_input != None \
                                 else None
+        self._lines = lines if lines != None else 1
 
-        self._model = self._setup_model()
-        self._lines = lines if lines != None else 0
+        # Threading
+        self._threads = { 'generate': None,
+                          'train': None,
+                          'load': threading.Thread(target=self._setup_model)
+        }
+        self._lines_queue = queue.Queue()
+        self._t_lock = threading.Lock() # Lock used when training.
+
+        self._threads['load'].daemon = True
+        self._threads['load'].start()
 
         self._gui = None
         if is_gui: self._config_gui()
-
-    def _setup_model(self):
-        """Create Markov object and return it.
-
-        Return
-            Markov
-                If no markov data is found then an Markov object with no data is
-                returned.
-        """
-        try:
-            return markov.Markov(self._markov_path)
-        except FileNotFoundError as _:
-            return markov.Markov()
-
-    def _train_markov(self, training_input: Path):
-        """Train the markov model with given data.
-
-        Side Effects
-            _model is modified as necessary.
-        Exception
-            FileNotFoundError
-        """
-        try:
-            if not self._training_path.exists():
-                self._training_path.touch(mode=0o666, exist_ok=True)
-
-            # Check if hash exists
-            hash_obj = hashlib.md5()
-            if not common.hash_exists(self._training_path,
-                                      common.hash_file(hash_obj, training_input)):
-                self._model.train(training_input.read_text(encoding='utf-8'))
-                with self._training_path.open('a') as f:
-                    f.write(hash_obj.hexdigest() + "\n")
-
-                self._model.write(self._markov_path)
-        except FileNotFoundError as e:
-            raise
 
     def _config_gui(self):
         """Configure the GUI.
@@ -86,6 +67,62 @@ class Controller(object):
         self._gui.gen_button.config(command=self.generate_callback)
         self._gui.train_button.config(command=self.train_callback)
 
+    def _setup_model(self):
+        """Create Markov object and return it.
+
+        Return
+            Markov
+                If no markov data is found then an Markov object with no data is
+                returned.
+        """
+        try:
+            self._env['model'] = markov.Markov(self._env['markov_path'])
+        except FileNotFoundError as _:
+            self._env['model'] = markov.Markov()
+
+    def _train(self, model: markov.Markov, training_path: Path,
+               training_input: Path):
+        """Train the markov model with given data.
+
+        Parameters
+            model (markov.Markov)
+            training_path (Path)
+            training_input (Path)
+        Side Effects
+            model is modified as necessary.
+        Exception
+            FileNotFoundError
+        """
+        try:
+            self._t_lock.acquire()
+            if not self._env['training_path'].exists():
+                self._env['training_path'].touch(mode=0o666, exist_ok=True)
+
+            # Check if hash exists
+            hash_obj = hashlib.md5()
+            if not common.hash_exists(training_path,
+                                      common.hash_file(hash_obj, training_input)):
+                model.train(training_input.read_text(encoding='utf-8'))
+                with training_path.open('a') as f:
+                    f.write(hash_obj.hexdigest() + "\n")
+
+                model.write(self._env['markov_path'])
+        except FileNotFoundError as e: raise
+        finally:
+            self._t_lock.release()
+
+    def _generate(self, model: markov.Markov, lines: int, results: queue.Queue):
+        """Generate line(s) of text.
+
+        Parameter
+            model (markov.Markov)
+            lines (int)
+            results (Queue)
+        Side Effects
+            results is modified
+        """
+        results.put(model.generate(lines))
+
     def run(self):
         """Execute the controller.
 
@@ -94,29 +131,81 @@ class Controller(object):
         """
         if self._gui != None:
             self._gui.mainloop()
-        else:
+        else:  # TODO Handle better
+            while self._threads['load'].is_alive():
+                sleep(5)
+
             if self._training_input == None:
-                if self._model.is_empty():
+                if self._env['model'].is_empty():
                     cmd.exit("ERROR: No markov data found!\nAborting....", -1)
             else:
                 cmd.output("Training...")
                 try:
-                    self._train_markov(self._training_input)
+                    self._train(self._env['model'], self._env['training_path'],
+                                self._training_input)
                     cmd.output("Training complete.")
                 except FileNotFoundError as e:
                     cmd.output(e)
-            cmd.output_lines(self._model, self._lines)
+            self._generate(self._env['model'], self._lines, self._lines_queue)
+            cmd.output(self._lines_queue.get())
+
+    def _delay_call(self, message: str, time: int, func):
+        """Create a timer to delay a call to a function.
+
+        Parameters
+            message (str): Output message
+            time (int): Seconds to delay
+            func (function): Function to call
+        Side Effects
+            self._gui is modified.
+        """
+        self._gui.write(tk.END, message)
+        threading.Timer(time, func).start()
 
     def train_callback(self):
-        """Train markov and report to GUI."""
-        self._gui.write(tk.END, "\n\nAttempting to train...\n")
+        """Train markov and report to GUI.
 
-        try:
-            self._train_markov(Path(self._gui.train_file.get()))
-            self._gui.write(tk.END, "Training complete.\n\n")
-        except FileNotFoundError as e:
-            self._gui.write(tk.END, "Training failed: %s\n" % e)
+        Side Effects
+            _gui is modified
+        """
+        if self._threads['load'].is_alive():
+            self._delay_call("INFO: Still loading...\n", 5,
+                                self.train_callback)
+        else:
+            self._gui.write(tk.END, "\n\nAttempting to train...\n")
+            train_input = Path(self._gui.train_file.get())
+            if not train_input.exists():
+                train_input = None
+                self._gui.write(tk.END, "Training failed\n\n")
+            else:
+                self._threads['train'] = threading.Thread(target=self._train,
+                    args=(self._env['model'], self._env['training_path'],
+                    train_input))
+                self._threads['train'].daemon = True
+                self._threads['train'].start()
+
+                # TODO Block for now.
+                self._threads['train'].join()
+                self._gui.write(tk.END, "Training complete.\n\n")
 
     def generate_callback(self):
-        """Generate output and send it to the GUI."""
-        self._gui.generate_output(self._model.generate())
+        """Generate output and send it to the GUI.
+
+        Side Effects
+            _gui is modified.
+            _line_queue is modified.
+        """
+        try:
+            if self._threads['load'].is_alive():
+                self._delay_call("INFO: Still loading...\n", 5,
+                                 self.generate_callback)
+            else:
+                self._threads['generate'] = threading.Thread(target=self._generate,
+                    args=(self._env['model'], self._lines, self._lines_queue))
+                self._threads['generate'].deamon = True
+                self._threads['generate'].start()
+
+                while self._lines_queue.qsize() != 0:
+                    self._gui.generate_output(self._lines_queue.get())
+        except RuntimeError as e:
+            cmd.exit(e, -1)

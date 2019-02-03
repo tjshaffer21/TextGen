@@ -12,10 +12,16 @@ if __name__ == '__main__':
                         help="File to train the system on.")
     parser.add_argument('--lines', '-n', type=int,
                         help="Number of lines to generate.")
-    parser.add_argument('--gui', '-g', action="store_true",
+    parser.add_argument('--gui', '-g', action="store_true", default=argparse.SUPPRESS,
                         help="Invoke GUI")
 
     args = parser.parse_args()
+
+    gui = False
+    if len(sys.argv) == 1:
+        gui = True
+    elif '--gui' in args or '-g' in args:
+        gui = True
     controller.Controller(Path(Path.cwd() / config.DATA_PATH / config.MARKOV_FILE),
                           Path(Path.cwd() / config.DATA_PATH / config.TRAIN_FILE),
-                          args.training, args.lines, args.gui).run()
+                          args.training, args.lines, gui).run()

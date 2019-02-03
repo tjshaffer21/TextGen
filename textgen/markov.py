@@ -32,7 +32,7 @@ class Markov(object):
             self._start_states = []
             self._markov = DiGraph()
 
-    def _get_neighbors(self, node) -> list:
+    def neighbors(self, node) -> list:
         """Return the list of neighbors of the given node.
 
         Parameters
@@ -42,7 +42,7 @@ class Markov(object):
         """
         return list(self._markov.neighbors(node))
 
-    def _get_edge_weights(self, node) -> list:
+    def edge_weights(self, node) -> list:
         """Return a list of weights for the given node.
 
         Parameters
@@ -59,6 +59,26 @@ class Markov(object):
             bool
         """
         return True if self._markov.number_of_nodes() == 0 else False
+
+    def is_start(self, node) -> bool:
+        """Return if given node is a start point.
+
+        Parameter
+            node
+        Return
+            bool
+        """
+        return self._markov.node[node]['start']
+
+    def is_stop(self, node) -> bool:
+        """Return if given node is a stop point.
+
+        Parameter
+            node
+        Return
+            bool
+        """
+        return self._markov.node[node]['stop']
 
     def train(self, data: str):
         """Train the system with the given data.
@@ -84,10 +104,10 @@ class Markov(object):
 
                     # Calculate total edge weight.
                     edges = sum([self._markov[prev][neighbor]['edge']
-                                for neighbor in self._get_neighbors(prev)])
+                                for neighbor in self.neighbors(prev)])
 
                     # Re-Calculate the edge weights.
-                    for neighbor in self._get_neighbors(prev):
+                    for neighbor in self.neighbors(prev):
                         self._markov[prev][neighbor]['weight'] = \
                             self._markov[prev][neighbor]['edge'] / edges
                 else:
@@ -112,10 +132,10 @@ class Markov(object):
             node = choice(self._start_states)
             while node:
                 chain.append(node)
-                neighbors = self._get_neighbors(node)
+                neighbors = self.neighbors(node)
                 if not neighbors or self._markov.node[node]['stop']:
                     break
-                node = choice(neighbors, p=self._get_edge_weights(node))
+                node = choice(neighbors, p=self.edge_weights(node))
 
         return reduce(lambda prev, word: prev + word if word in punctuation
                                                      else prev + ' ' + word,
