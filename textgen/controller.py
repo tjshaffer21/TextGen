@@ -27,9 +27,10 @@ class Controller(object):
         self._training_input = training_input
 
         self._model = self._setup_model()
-
         self._lines = lines
-        self._gui = is_gui
+
+        self._gui = None
+        if is_gui: self._config_gui()
 
     def _setup_model(self):
         """Create Markov object and return it.
@@ -44,7 +45,7 @@ class Controller(object):
         except FileNotFoundError as _:
             return markov.Markov()
 
-    def _train_markov(self):
+    def _train_markov(self, training_input: Path):
         """Train the markov model with given data.
 
         Side Effects
@@ -59,9 +60,8 @@ class Controller(object):
             # Check if hash exists
             hash_obj = hashlib.md5()
             if not common.hash_exists(self._training_path,
-                                      common.hash_file(hash_obj, self._training_input)):
-                self._model.train(
-                    self._training_input.read_text(encoding='utf-8'))
+                                      common.hash_file(hash_obj, training_input)):
+                self._model.train(training_input.read_text(encoding='utf-8'))
                 with self._training_path.open('a') as f:
                     f.write(hash_obj.hexdigest() + "\n")
 
@@ -69,24 +69,17 @@ class Controller(object):
         except FileNotFoundError as e:
             raise
 
-    def _run_gui(self):
-        """Initialize and enter into gui loop.
-
-        Parameters
-            markov (Markov) : Markov object
-            markov_path (Path) : Path to Markov file.
-            training_path (Path) : Path to training file.
-        """
+    def _config_gui(self):
+        """ """
         _root = tk.Tk()
 
         x = _root.winfo_screenwidth() / 2 - DEFAULT_WIDTH / 2
         y = _root.winfo_screenheight() / 2 - DEFAULT_HEIGHT / 2
         _root.geometry("%dx%d+%d+%d" % (DEFAULT_WIDTH, DEFAULT_HEIGHT, x, y))
 
-        main = ui.MainWidget(_root, self._model, self._markov_path,
-                             self._training_path)
-
-        main.mainloop()
+        self._gui = ui.MainWidget(_root)
+        self._gui.gen_button.config(command=self.generate_callback)
+        self._gui.train_button.config(command=self.train_callback)
 
     def run(self):
         """Execute the controller.
@@ -94,8 +87,8 @@ class Controller(object):
         Side Effects
             Depends on actions
         """
-        if self._gui:
-            self._run_gui()
+        if self._gui != None:
+            self._gui.mainloop()
         else:
             if self._training_input == None:
                 if self._model.is_empty():
@@ -103,8 +96,22 @@ class Controller(object):
             else:
                 cmd.output("Training...")
                 try:
-                    self._train_markov()
+                    self._train_markov(self._training_input)
                     cmd.output("Training complete.")
                 except FileNotFoundError as e:
                     cmd.output(e)
             cmd.output_lines(self._model, self._lines)
+
+    def train_callback(self):
+        """Train markov and report to GUI."""
+        self._gui.write(tk.END, "Attempting to train...\n")
+
+        try:
+            self._train_markov(Path(self._gui.train_file.get()))
+            self._gui.write(tk.END, "Training complete.\n\n")
+        except FileNotFoundError as e:
+            self._gui.write(tk.END, "Training failed: %s\n" % e)
+
+    def generate_callback(self):
+        """Generate output and send it to the GUI."""
+        self._gui.generate_output(self._model.generate())

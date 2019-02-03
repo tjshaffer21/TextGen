@@ -3,34 +3,27 @@
 
 """Implement the user interface for the application."""
 
-import sys, hashlib
+import sys
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
-from textgen import config, common, markov
+from textgen import config
 
 class MainWidget(ttk.Frame):
     """Main Frame widget for application.
 
     Attributes
-      BTN_W (int) : Constant for default button width.
-      BTN_H (int) : Constant for default button height.
-      ABOUT_SIZE (tuple) : Size used for w,h of the About subwidget.
-
-    Private Attributes
-      _markov_path (Path) : The markov data file.
-      _markov (Markov)
-      _master (Frame) : The parent widget.
-      _text (Text)  : Main text widget to display results.
-      _train_file (StringVar) : File path of training files to read.
-      _train_path (Path) : The training data file that stores hashes.
+      train_file (StringVar) : Variable holding path to training file.
+      _master (private, Frame) : Master
+      _text (private, ScrolledText) : Text widget
+      _menu (private, Menu) : Menu widget
+      BTN_W (private, int) : Constant for default button width.
+      BTN_H (private, int) : Constant for default button height.
+      ABOUT_SIZE (private, tuple) : Size used for w,h of the About subwidget.
 
     Parameters
-        master        -- Parent of the Widget.
-        markov_file   -- Path to the markov data
-        training_file -- Path to the training record.
-        markov        -- The markov system
+        master : Parent of the Widget.
     """
 
     BTN_W = 5
@@ -38,13 +31,10 @@ class MainWidget(ttk.Frame):
 
     ABOUT_SIZE = (400, 150)
 
-    def __init__(self, master, markov: markov.Markov, markov_file: Path,
-                 training_file: Path):
+    def __init__(self, master):
         if master == None:
             ttk.messagebox.showerror("Error", "Unable to render screen.")
             sys.exit(-1)
-
-        self._markov_env = (markov, markov_file, training_file)
 
         # Set up GUI
         self._master = master
@@ -54,25 +44,12 @@ class MainWidget(ttk.Frame):
 
         ttk.Frame.__init__(self, master)
 
-        self._text = None
+        self.train_file = tk.StringVar()
+        self.train_file.set("Training File")
+
         self._menu = tk.Menu(self._master)
-
-        self._train_file = tk.StringVar()
-        self._train_file.set("Training File")
-
         self._init_menu()
-        self._init_layout()
 
-        if self._markov_env[0].is_empty():
-            self._write(tk.END, "WARN: No Markov data available.\n\n")
-
-    def _init_layout(self):
-        """Initialze the layout.
-
-        Side Effects
-          self._text
-          self._train_file
-        """
         # Configure layout
         width=20
         height=20
@@ -91,16 +68,19 @@ class MainWidget(ttk.Frame):
         tk.Button(self._master, text="Browse", width=self.BTN_W,
                   height=self.BTN_H, padx=10,
                   command=self._file_callback).grid(row=1, column=width-2)
-        tk.Button(self._master, text="Train", width=self.BTN_W,
-                  height=self.BTN_H, padx=10,
-                  command=self._train_callback).grid(row=1, column=width-1)
-        tk.Button(self._master, text="Generate", width=self.BTN_W,
-                  height=self.BTN_H, padx=10,
-                  command=self._gen_callback).grid(row=2, column=width-1)
+        self.train_button = tk.Button(self._master, text="Train",
+                                      width=self.BTN_W, height=self.BTN_H,
+                                      padx=10)
+        self.gen_button = tk.Button(self._master, text="Generate",
+                                    width=self.BTN_W, height=self.BTN_H,
+                                    padx=10)
+
+        self.train_button.grid(row=1, column=width-1)
+        self.gen_button.grid(row=2, column=width-1)
 
         # Create file Entry
         ttk.Entry(self._master, width=30,
-              textvariable=self._train_file).grid(row=1, column=0,
+              textvariable=self.train_file).grid(row=1, column=0,
                                                   columnspan=width)
 
     def _init_menu(self):
@@ -151,63 +131,27 @@ class MainWidget(ttk.Frame):
         """Callback for the 'Browse' button.
 
         Side Effects
-          _train_file
+          train_file
         """
-        self._train_file.set(tk.filedialog.askopenfilename(
+        self.train_file.set(tk.filedialog.askopenfilename(
             initialdir = str(Path.cwd()),
             title = "Select file",
             filetypes = (("txt files", "*.txt"), ("all files", "*."))))
-
-    def _gen_callback(self):
-        """Callback for the generate button.
-
-        Side Effects
-          _text
-        """
-        if self._markov_env[0].is_empty():
-            self._write(tk.END, "Error: No Markov data available.\n\n")
-        else:
-            self._write(tk.END, self._markov_env[0].generate() + ' ')
-
-    def _train_callback(self):
-        """Callback for the 'Train' button.
-
-        Side Effects
-          _hash, _markov_env, _text are modified.
-        """
-        try:
-            self._write(tk.END, "Attempting to train...\n")
-            train = Path(self._train_file.get())
-
-            # Ensure training file exists.
-            tfout = Path(self._markov_env[1])
-            if not tfout.exists():
-                tfout.touch(mode=0o666, exist_ok=True)
-
-            # Check if hash of file exists.
-            hash_obj = hashlib.md5()
-            hs = common.hash_file(hash_obj, train)
-
-            found = common.hash_exists(tfout, hs)
-            if not found:
-                self._markov_env[0].train(train.read_text(encoding='utf-8'))
-
-                with tfout.open('a') as f:
-                    f.write(hs + "\n")
-
-                self._markov_env[0].write(self._markov_env[1])
-                self._write(tk.END, "Training complete.\n\n")
-            else:
-                self._write(tk.END, "Training already completed.\n\n")
-        except FileNotFoundError as e:
-            tk.messagebox.showerror("Error", e.strerror)
 
     def _win_hide(self, win):
         """Hide the window and return control to parent."""
         win.grab_release()
         win.withdraw()
 
-    def _write(self, position=tk.END, text=None):
+    def generate_output(self, output: str):
+        """Output message.
+
+        Side Effects
+          _text
+        """
+        self.write(tk.END, output + ' ')
+
+    def write(self, position=tk.END, text=None):
         """Convience function to write to _text.
 
         Parameters
