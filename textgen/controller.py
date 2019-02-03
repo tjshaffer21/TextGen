@@ -20,14 +20,15 @@ class Controller(object):
         See Attributes
     """
 
-    def __init__(self, markov_path, training_path, training_input,
-                 lines: int = 1, is_gui: bool = True):
+    def __init__(self, markov_path: Path, training_path: Path,
+                 training_input: Path, lines: int = 1, is_gui: bool = True):
         self._markov_path = markov_path
         self._training_path = training_path
-        self._training_input = training_input
+        self._training_input = Path(training_input) if training_input != None \
+                                else None
 
         self._model = self._setup_model()
-        self._lines = lines
+        self._lines = lines if lines != None else 0
 
         self._gui = None
         if is_gui: self._config_gui()
@@ -70,7 +71,11 @@ class Controller(object):
             raise
 
     def _config_gui(self):
-        """ """
+        """Configure the GUI.
+
+        Side Effects
+            _gui is modified.
+        """
         _root = tk.Tk()
 
         x = _root.winfo_screenwidth() / 2 - DEFAULT_WIDTH / 2
@@ -104,7 +109,7 @@ class Controller(object):
 
     def train_callback(self):
         """Train markov and report to GUI."""
-        self._gui.write(tk.END, "Attempting to train...\n")
+        self._gui.write(tk.END, "\n\nAttempting to train...\n")
 
         try:
             self._train_markov(Path(self._gui.train_file.get()))

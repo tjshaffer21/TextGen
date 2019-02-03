@@ -8,7 +8,8 @@ def output_lines(markov: markov.Markov, lines: int = 1):
         markov (Markov) : Markov object.
         lines (int, default=1) : Number of lines to generate.
     """
-    print(markov.generate(lines))
+    if lines >= 1:
+        print(markov.generate(lines))
 
 def output(msg: str):
     """ """

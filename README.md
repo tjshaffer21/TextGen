@@ -7,13 +7,11 @@ A naive Markov text generator.
 ### Prerequisites
 
 - Python 3
-- hashlib
-- pathlib
-- tkinter
 - networkx
 - nltk
 - numpy
 - yaml
+- builtins: argparse, hashlib, pathlib, tkinter
 
 ### Running
 
