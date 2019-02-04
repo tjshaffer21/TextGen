@@ -38,15 +38,13 @@ class Controller(object):
         self._lines = lines if lines != None else 1
 
         # Threading
-        self._threads = { 'generate': None,
-                          'train': None,
-                          'load': threading.Thread(target=self._setup_model)
-        }
+        self._threads = { 'generate': None, 'train': None, 'load': None }
+        # Queue for the results of generate thread.
         self._lines_queue = queue.Queue()
-        self._t_lock = threading.Lock() # Lock used when training.
+        # Lock used when training.
+        self._t_lock = threading.Lock()
 
-        self._threads['load'].daemon = True
-        self._threads['load'].start()
+        self._start_thread("load", self._setup_model)
 
         self._gui = None
         if is_gui: self._config_gui()
@@ -67,6 +65,31 @@ class Controller(object):
         self._gui.gen_button.config(command=self.generate_callback)
         self._gui.train_button.config(command=self.train_callback)
 
+    def _delay_call(self, message: str, time: int, func):
+        """Create a timer to delay a call to a function.
+
+        Parameters
+            message (str): Output message
+            time (int): Seconds to delay
+            func (function): Function to call
+        Side Effects
+            self._gui is modified.
+        """
+        self._gui.write(tk.END, message)
+        threading.Timer(time, func).start()
+
+    def _generate(self, model: markov.Markov, lines: int, results: queue.Queue):
+        """Generate line(s) of text.
+
+        Parameter
+            model (markov.Markov)
+            lines (int)
+            results (Queue)
+        Side Effects
+            results is modified
+        """
+        results.put(model.generate(lines))
+
     def _setup_model(self):
         """Create Markov object and return it.
 
@@ -79,6 +102,29 @@ class Controller(object):
             self._env['model'] = markov.Markov(self._env['markov_path'])
         except FileNotFoundError as _:
             self._env['model'] = markov.Markov()
+
+    def _start_thread(self, name : str, target, *args, **kargs):
+        """Given thread information, create and start a thread.
+
+        Parameters
+            name (str) : Name of the thread that is being reference. If thread
+                does not exist then create it. Names are the names used in
+                self._threads.
+            target (function) : Function called with thread.
+            args : Arguments to pass to function.
+            karg : Keyword argumetns to pass to function.
+        """
+        if self._threads[name] != None and not self._threads[name].is_alive():
+            self._threads[name] = None
+
+        if self._threads[name] == None:
+            try:
+                self._threads[name]=threading.Thread(target=target, args=args,
+                    kwargs=kargs)
+                self._threads[name].daemon = True
+                self._threads[name].start()
+            except RuntimeError as r:
+                cmd.exit("Runtime error: %s" % r, -1)
 
     def _train(self, model: markov.Markov, training_path: Path,
                training_input: Path):
@@ -111,18 +157,6 @@ class Controller(object):
         finally:
             self._t_lock.release()
 
-    def _generate(self, model: markov.Markov, lines: int, results: queue.Queue):
-        """Generate line(s) of text.
-
-        Parameter
-            model (markov.Markov)
-            lines (int)
-            results (Queue)
-        Side Effects
-            results is modified
-        """
-        results.put(model.generate(lines))
-
     def run(self):
         """Execute the controller.
 
@@ -149,19 +183,6 @@ class Controller(object):
             self._generate(self._env['model'], self._lines, self._lines_queue)
             cmd.output(self._lines_queue.get())
 
-    def _delay_call(self, message: str, time: int, func):
-        """Create a timer to delay a call to a function.
-
-        Parameters
-            message (str): Output message
-            time (int): Seconds to delay
-            func (function): Function to call
-        Side Effects
-            self._gui is modified.
-        """
-        self._gui.write(tk.END, message)
-        threading.Timer(time, func).start()
-
     def train_callback(self):
         """Train markov and report to GUI.
 
@@ -178,11 +199,8 @@ class Controller(object):
                 train_input = None
                 self._gui.write(tk.END, "Training failed\n\n")
             else:
-                self._threads['train'] = threading.Thread(target=self._train,
-                    args=(self._env['model'], self._env['training_path'],
-                    train_input))
-                self._threads['train'].daemon = True
-                self._threads['train'].start()
+                self._start_thread("train", self._train, self._env['model'],
+                    self._env['training_path'], train_input)
 
                 # TODO Block for now.
                 self._threads['train'].join()
@@ -195,17 +213,12 @@ class Controller(object):
             _gui is modified.
             _line_queue is modified.
         """
-        try:
-            if self._threads['load'].is_alive():
-                self._delay_call("INFO: Still loading...\n", 5,
-                                 self.generate_callback)
-            else:
-                self._threads['generate'] = threading.Thread(target=self._generate,
-                    args=(self._env['model'], self._lines, self._lines_queue))
-                self._threads['generate'].deamon = True
-                self._threads['generate'].start()
+        if self._threads['load'].is_alive():
+            self._delay_call("INFO: Still loading...\n", 5,
+                                self.generate_callback)
+        else:
+            self._start_thread("generate", self._generate,
+                self._env['model'], self._lines, self._lines_queue)
 
-                while self._lines_queue.qsize() != 0:
-                    self._gui.generate_output(self._lines_queue.get())
-        except RuntimeError as e:
-            cmd.exit(e, -1)
+            while self._lines_queue.qsize() != 0:
+                self._gui.generate_output(self._lines_queue.get())
