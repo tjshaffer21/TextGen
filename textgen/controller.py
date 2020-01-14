@@ -99,7 +99,7 @@ class Controller(object):
                 returned.
         """
         try:
-            self._env['model'] = markov.Markov(self._env['markov_path'])
+            self._env['model'] = markov.read(self._env['markov_path'])
         except FileNotFoundError as _:
             self._env['model'] = markov.Markov()
 
@@ -152,7 +152,7 @@ class Controller(object):
                 with training_path.open('a') as f:
                     f.write(hash_obj.hexdigest() + "\n")
 
-                model.write(self._env['markov_path'])
+                markov.write(model, self._env['markov_path'])
         except FileNotFoundError as e: raise
         finally:
             self._t_lock.release()
