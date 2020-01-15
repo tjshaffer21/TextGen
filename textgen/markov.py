@@ -37,7 +37,7 @@ class Markov(object):
             corpus (tuple) : Element 1 is a set of entry nodes. Element 2 is a
                              dictionary of dictionaries for the corpus.
 
-        Modified
+        Side Effects
             _init_nodes
             _corpus
         """
@@ -56,7 +56,7 @@ class Markov(object):
     def calc_transition(self):
         """Iterate through the corpus and calculate the transition probabilities
 
-        Modifications
+        Side Effects
             _transition is modified
 
         """

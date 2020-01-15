@@ -1,22 +1,16 @@
 import sys, hashlib, queue, threading
 from time import sleep
-from string import punctuation
 from pathlib import Path
 import tkinter as tk
-from functools import reduce
-from numpy.random import choice
 from textgen import common, cmd, markov, ui
-
-DEFAULT_WIDTH = 650
-DEFAULT_HEIGHT = 510
 
 class Controller(object):
     """Controller to handle communication between model and view.
 
-    Attributes
-        _env (private, dict) : 'markov_path', 'training_path', 'model' data
-        _threads (private, dict) : 'generate', 'train', and 'load' threads.
-        _training_input (private) : Path to training input; None if there is none.
+    Private Attributes
+        _env (dict) : 'markov_path', 'training_path', 'model' data
+        _threads (dict) : 'generate', 'train', and 'load' threads.
+        _training_input (Path) : Path to training input; None if there is none.
         _lines (int, default=1) : Number of lines to print. Applicable to command
                                   line only.
         _gui : GUI variable.
@@ -27,24 +21,44 @@ class Controller(object):
         lines (int) : Number of lines to generate (cmd, only)
         is_gui (bool) : Flag indicating whether GUI or terminal.
     """
+
+    __MARKOV_PATH_STRING = 'markov_path'
+    __TRAINING_PATH_STRING = 'training_path'
+    __MODEL_STRING = 'model'
+    __TRAIN_STRING = 'train'
+    __LOAD_STRING = 'load'
+    __GENERATE_STRING = 'generate'
+
+    __GEN_BTN_STRING = 'gen_btn'
+    __TRAIN_BTN_STRING = 'train_btn'
+
+    __ERROR_OUTPUT_STRING = "ERROR"
+    __INFO_OUTPUT_STRING = "INFO"
+    __TRAINING_OUTPUT_STRING = "Training"
+    __TRAIN_COMP_OUTPUT_STRING = "Training complete"
+    __TRAIN_FAIL_OUTPUT_STRING = "Training failed"
+    __ERR_NO_MAR_STRING = "No markov data found"
+    __LOADING_OUTPUT_STRING = "Loading"
+    __NEWLINE_STRING = "\n"
+
     def __init__(self, markov_path: Path, training_path: Path,
                  training_input: Path, lines: int = 1, is_gui: bool = True):
-        self._env = { 'markov_path': markov_path,
-                      'training_path' : training_path,
-                      'model' : None
+        self._env = { self.__MARKOV_PATH_STRING : markov_path,
+                      self.__TRAINING_PATH_STRING : training_path,
+                      self.__MODEL_STRING : None
         }
         self._training_input = Path(training_input) if training_input != None \
                                 else None
         self._lines = lines if lines != None else 1
 
-        # Threading
-        self._threads = { 'generate': None, 'train': None, 'load': None }
-        # Queue for the results of generate thread.
+        self._threads = { self.__GENERATE_STRING: None,
+                          self.__TRAIN_STRING: None,
+                          self.__LOAD_STRING: None
+        }
         self._lines_queue = queue.Queue()
-        # Lock used when training.
         self._t_lock = threading.Lock()
 
-        self._start_thread("load", self._setup_model)
+        self._start_thread(self.__LOAD_STRING, self._setup_model)
 
         self._gui = None
         if is_gui: self._config_gui()
@@ -57,13 +71,11 @@ class Controller(object):
         """
         _root = tk.Tk()
 
-        x = _root.winfo_screenwidth() / 2 - DEFAULT_WIDTH / 2
-        y = _root.winfo_screenheight() / 2 - DEFAULT_HEIGHT / 2
-        _root.geometry("%dx%d+%d+%d" % (DEFAULT_WIDTH, DEFAULT_HEIGHT, x, y))
-
         self._gui = ui.MainWidget(_root)
-        self._gui.gen_button.config(command=self.generate_callback)
-        self._gui.train_button.config(command=self.train_callback)
+        self._gui.get_object(self.__GEN_BTN_STRING).config(
+                                command=self.generate_callback)
+        self._gui.get_object(self.__TRAIN_BTN_STRING).config(
+                                command=self.train_callback)
 
     def _delay_call(self, message: str, time: int, func):
         """Create a timer to delay a call to a function.
@@ -99,9 +111,10 @@ class Controller(object):
                 returned.
         """
         try:
-            self._env['model'] = markov.read(self._env['markov_path'])
+            self._env[self.__MODEL_STRING] = \
+                markov.read(self._env[self.__MARKOV_PATH_STRING])
         except FileNotFoundError as _:
-            self._env['model'] = markov.Markov()
+            self._env[self.__MODEL_STRING] = markov.Markov()
 
     def _start_thread(self, name : str, target, *args, **kargs):
         """Given thread information, create and start a thread.
@@ -120,11 +133,11 @@ class Controller(object):
         if self._threads[name] == None:
             try:
                 self._threads[name]=threading.Thread(target=target, args=args,
-                    kwargs=kargs)
+                                                     kwargs=kargs)
                 self._threads[name].daemon = True
                 self._threads[name].start()
             except RuntimeError as r:
-                cmd.exit("Runtime error: %s" % r, -1)
+                cmd.exit(self.__ERROR_OUTPUT_STRING + " %s" % r, -1)
 
     def _train(self, model: markov.Markov, training_path: Path,
                training_input: Path):
@@ -141,8 +154,9 @@ class Controller(object):
         """
         try:
             self._t_lock.acquire()
-            if not self._env['training_path'].exists():
-                self._env['training_path'].touch(mode=0o666, exist_ok=True)
+            if not self._env[self.__TRAINING_PATH_STRING].exists():
+                self._env[self.__TRAINING_PATH_STRING].touch(mode=0o666,
+                                                             exist_ok=True)
 
             # Check if hash exists
             hash_obj = hashlib.md5()
@@ -150,9 +164,9 @@ class Controller(object):
                                       common.hash_file(hash_obj, training_input)):
                 model.train(training_input.read_text(encoding='utf-8'))
                 with training_path.open('a') as f:
-                    f.write(hash_obj.hexdigest() + "\n")
+                    f.write(hash_obj.hexdigest() + self.__NEWLINE_STRING)
 
-                markov.write(model, self._env['markov_path'])
+                markov.write(model, self._env[self.__MARKOV_PATH_STRING])
         except FileNotFoundError as e: raise
         finally:
             self._t_lock.release()
@@ -163,24 +177,27 @@ class Controller(object):
         Side Effects
             Depends on actions
         """
-        if self._gui != None:
-            self._gui.mainloop()
-        else:  # TODO Handle better
-            while self._threads['load'].is_alive():
+        if self._gui is not None:
+            self._gui.run()
+        else:
+            while self._threads[self.__LOAD_STRING].is_alive():
                 sleep(5)
 
             if self._training_input == None:
-                if self._env['model'].is_empty():
-                    cmd.exit("ERROR: No markov data found!\nAborting....", -1)
+                if self._env[self.__MODEL_STRING].is_empty():
+                    cmd.exit(self.__ERROR_OUTPUT_STRING \
+                             + self.__ERR_NO_MAR_STRING, -1)
             else:
-                cmd.output("Training...")
+                cmd.output(self.__TRAINING_OUTPUT_STRING)
                 try:
-                    self._train(self._env['model'], self._env['training_path'],
+                    self._train(self._env[self.__MODEL_STRING],
+                                self._env[self.__TRAINING_PATH_STRING],
                                 self._training_input)
-                    cmd.output("Training complete.")
+                    cmd.output(self.__TRAIN_COMP_OUTPUT_STRING)
                 except FileNotFoundError as e:
                     cmd.output(e)
-            self._generate(self._env['model'], self._lines, self._lines_queue)
+            self._generate(self._env[self.__MODEL_STRING], self._lines,
+                           self._lines_queue)
             cmd.output(self._lines_queue.get())
 
     def train_callback(self):
@@ -189,22 +206,27 @@ class Controller(object):
         Side Effects
             _gui is modified
         """
-        if self._threads['load'].is_alive():
-            self._delay_call("INFO: Still loading...\n", 5,
-                                self.train_callback)
+        if self._threads[self.__LOAD_STRING].is_alive():
+            self._delay_call(self.__INFO_OUTPUT_STRING + self.__LOAD_STRING \
+                + self.__NEWLINE_STRING, 5, self.generate_callback)
         else:
-            self._gui.write(tk.END, "\n\nAttempting to train...\n")
-            train_input = Path(self._gui.train_file.get())
-            if not train_input.exists():
-                train_input = None
-                self._gui.write(tk.END, "Training failed\n\n")
-            else:
-                self._start_thread("train", self._train, self._env['model'],
-                    self._env['training_path'], train_input)
+            self._gui.write(tk.END, self.__NEWLINE_STRING + self.__NEWLINE_STRING \
+                + self.__TRAINING_OUTPUT_STRING + self.__NEWLINE_STRING)
 
-                # TODO Block for now.
-                self._threads['train'].join()
-                self._gui.write(tk.END, "Training complete.\n\n")
+            train_input = Path(self._gui.training_input.get())
+            if not train_input.exists():
+                self._gui.write(tk.END, self.__TRAIN_FAIL_OUTPUT_STRING \
+                    + self.__NEWLINE_STRING + self.__NEWLINE_STRING)
+            else:
+                self._start_thread(self.__TRAIN_STRING,
+                                   self._train,
+                                   self._env[self.__MODEL_STRING],
+                                   self._env[self.__TRAINING_PATH_STRING],
+                                   train_input)
+
+                self._threads[self.__TRAIN_STRING].join()
+                self._gui.write(tk.END, self.__TRAIN_COMP_OUTPUT_STRING \
+                    + self.__NEWLINE_STRING + self.__NEWLINE_STRING)
 
     def generate_callback(self):
         """Generate output and send it to the GUI.
@@ -213,12 +235,19 @@ class Controller(object):
             _gui is modified.
             _line_queue is modified.
         """
-        if self._threads['load'].is_alive():
-            self._delay_call("INFO: Still loading...\n", 5,
-                                self.generate_callback)
+        if self._env[self.__MODEL_STRING].is_empty():
+            self._gui.write(tk.END, self.__ERROR_OUTPUT_STRING \
+                + self.__ERR_NO_MAR_STRING + self.__NEWLINE_STRING)
         else:
-            self._start_thread("generate", self._generate,
-                self._env['model'], self._lines, self._lines_queue)
-
-            while self._lines_queue.qsize() != 0:
-                self._gui.generate_output(self._lines_queue.get())
+            if self._threads[self.__LOAD_STRING].is_alive():
+                self._delay_call(self.__INFO_OUTPUT_STRING + self.__LOAD_STRING \
+                    + self.__NEWLINE_STRING, 5, self.generate_callback)
+            else:
+                self._start_thread(self.__GENERATE_STRING,
+                                   self._generate,
+                                   self._env[self.__MODEL_STRING],
+                                   self._lines,
+                                   self._lines_queue)
+                self._threads[self.__GENERATE_STRING].join()
+                self._gui.generate_output(self._lines_queue.get() \
+                    + self.__NEWLINE_STRING + self.__NEWLINE_STRING)
